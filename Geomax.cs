@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using SiteSurvey;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace FileImporter
 {
@@ -61,11 +62,11 @@ namespace FileImporter
         private void WritePointsToGPF(string CoordDirectory,string filename)
         {
 
+
+
             if (!filename.ValidFile())
             { 
                 
-
-              
                 SaveFileDialog sfd = new SaveFileDialog();
                 if (Directory.Exists(CoordDirectory))
                 {
@@ -73,16 +74,54 @@ namespace FileImporter
 
                 }
                 sfd.Filter = "Ground Plot Files (*.gpf) | *.gpf";
+
+                DialogResult res = sfd.ShowDialog();
+                if (res == DialogResult.Cancel)
+                {
+                    return;
+                }
+                
             }
-        }
 
-        public bool ImportGeomaxRAW(string FileName = "", string CoordDirectory, string ObsDirectory)
-        {
-          
+            if (File.Exists(filename))
+            {
+                //do we want to overwrite one that already exists?
+                DialogResult res = MessageBox.Show("The selected file exists, do you want to overwrite?", "File Exists!", MessageBoxButtons.YesNo);
+                if (res == DialogResult.No)
+                {
+                    return;
+                }
+            }
 
+            try
+            {
+
+                using (StreamWriter sw = new StreamWriter(filename, false))
+                {
+                    foreach (TopoGraphicPoint pt in TopoGraphicPoints)
+                    {
+                        sw.WriteLine(pt.ToString(CoordinateOptions.GPF));
+                    }
+                }
+
+                
+            }
+            catch(Exception ex) 
+            {
+                MessageBox.Show("An error was encountered while attempting to write coordinates to the file.", "File Write Error");
+                return;
+            
+            }
             
 
 
+
+
+        }
+
+        public bool ImportGeomaxRAW(string FileName = "", string CoordDirectory = "", string ObsDirectory = "")
+        {
+         
             if (!FileName.ValidFile())
             {
 
@@ -221,7 +260,7 @@ namespace FileImporter
             }
             #endregion parse
 
-            
+            WritePointsToGPF( CoordDirectory, FileName);
 
             //finally report info to the user...
             GeomaxResultsDlg dlg = new GeomaxResultsDlg();
@@ -432,7 +471,11 @@ namespace FileImporter
 
                 if (opts == CoordinateOptions.General)
                 {
-                    txt =  PointNumber + "," + Easting.ToString("0.000")+ "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + Code + "," + "Class: " + PointClass +  "," +  "Description: " + Description + "," +"Date :" + Date + "," + "Time: " + Time;
+                    txt = PointNumber + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + Code + "," + "Class: " + PointClass + "," + "Description: " + Description + "," + "Date :" + Date + "," + "Time: " + Time;
+                }
+                else if (opts == CoordinateOptions.GPF)
+                { 
+                    txt = PointNumber + " " + NRG.Services.StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
                 }
 
                 return txt;

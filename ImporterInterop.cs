@@ -15,7 +15,8 @@ namespace FileImporter
     public interface ImporterInterop
     {
         [DispId(900)]
-        bool ImportGeomaxRAW(string Filename = "");
+        bool ImportGeomaxRAW(string Filename = "", string CoordDirectory = "", string ObsDirectory = "");
+        
     }
 
 
