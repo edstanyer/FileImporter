@@ -59,18 +59,39 @@ namespace FileImporter
 
         private List<PolarObservation> PolarOberservations = new List<PolarObservation>();
 
+        private string GetFileName(string startFolder, string filename, string extension)
+        {
+
+            if (extension.Length > 1 && !extension.StartsWith("."))
+            {
+                extension = "." + extension;
+            }
+            else
+            { 
+                return "";
+            }
+
+            filename = Path.ChangeExtension(filename, "");
+
+            return "";
+        }
+
         private void WritePointsToGPF(string CoordDirectory,string filename)
         {
 
-
+            if (filename.ValidFile())
+            {
+                filename = Path.ChangeExtension(filename, ".GPF");
+            }
 
             if (!filename.ValidFile())
-            { 
-                
+            {
+
                 SaveFileDialog sfd = new SaveFileDialog();
                 if (Directory.Exists(CoordDirectory))
                 {
-                    sfd.InitialDirectory = CoordDirectory;  
+                    sfd.InitialDirectory = CoordDirectory;
+                    sfd.FileName = filename;
 
                 }
                 sfd.Filter = "Ground Plot Files (*.gpf) | *.gpf";
@@ -80,7 +101,17 @@ namespace FileImporter
                 {
                     return;
                 }
-                
+                else
+                {
+                    filename = sfd.FileName;
+                }
+
+            }
+
+            else
+            {
+                //Have the file name in upper case to make manipulation easier!
+                filename.ToUpper().Replace(".RAW", ".GPF");
             }
 
             if (File.Exists(filename))
@@ -98,25 +129,29 @@ namespace FileImporter
 
                 using (StreamWriter sw = new StreamWriter(filename, false))
                 {
+                    sw.WriteLine(";NRG GROUND PLOT FILE VERSION 2");
+
                     foreach (TopoGraphicPoint pt in TopoGraphicPoints)
                     {
                         sw.WriteLine(pt.ToString(CoordinateOptions.GPF));
                     }
+
+                    sw.Close();
                 }
 
                 
             }
             catch(Exception ex) 
             {
-                MessageBox.Show("An error was encountered while attempting to write coordinates to the file.", "File Write Error");
+                MessageBox.Show("An error was encountered while attempting to write coordinates to the file." + Environment.NewLine + Environment.NewLine + ex.Message, "File Write Error");
                 return;
             
             }
-            
+        }
 
-
-
-
+        private void WritePointsToPDF(string ObsDirectory, string filename)
+        { 
+        
         }
 
         public bool ImportGeomaxRAW(string FileName = "", string CoordDirectory = "", string ObsDirectory = "")
@@ -250,9 +285,6 @@ namespace FileImporter
                             setup = new StationSetup(occ);
                             Setups.Add(setup);
                         }
-
-
-
 
                         break;
 
@@ -475,7 +507,7 @@ namespace FileImporter
                 }
                 else if (opts == CoordinateOptions.GPF)
                 { 
-                    txt = PointNumber + " " + NRG.Services.StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
+                    txt = PointNumber + "," + NRG.Services.StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
                 }
 
                 return txt;
