@@ -3,14 +3,88 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using NRG;
-using static C1.Util.Win.Win32;
 using static FileImporter.DataTypes;
 
 namespace FileImporter
 {
     public static class MathsHelper
     {
+
+        public static void PRC(double east, double north, double brg, double dist, ref double easta, ref double northa, double scalefactor = 1.0)
+        {
+            double newdist = 0, X = 0, Y = 0;
+            if (scalefactor == 0) { scalefactor = 1; }
+
+            newdist = dist * scalefactor;
+            if (brg == Math.PI / 2)
+            {
+                X = newdist;
+            }
+            else if (brg == 3 * (Math.PI / 2))
+            {
+                X = -newdist;
+            }
+            else
+            {
+                X = Math.Sin(brg) * newdist;
+            }
+            if (brg == 0)
+            {
+                Y = newdist;
+            }
+            else if (brg == Math.PI)
+            {
+                Y = -newdist;
+            }
+            else
+            {
+                Y = Math.Cos(brg) * newdist;
+            }
+            easta = east + X;
+            northa = north + Y;
+        }
+
+        public static void RPC(double Eocc, double Nocc, double er, double nr, ref double brg, ref double dist, double scaleFactor = 1)
+        {
+
+            double X, Y;
+
+            if (scaleFactor <= 0) { scaleFactor = 1; }
+
+            X = er - Eocc;
+            Y = nr - Nocc;
+
+            bool calcBrg = true;
+
+            if (Y == 0 & X >= 0)
+            {
+                brg = Math.PI / 2;
+                calcBrg = false;
+            }
+            if (Y == 0 & X < 0)
+            {
+                brg = 1.5 * Math.PI;
+                calcBrg = false;
+            }
+
+            if (calcBrg == true)
+            {
+                brg = Math.Atan(X / Y) - Math.PI;
+                if (Y > 0) { brg = brg + Math.PI; }
+                if (brg < 0) { brg = brg + (2 * Math.PI); }
+            }
+
+            dist = Math.Sqrt((X * X) + (Y * Y));
+            dist = dist / scaleFactor;
+        }
+
+        public static double FnDistance(double x1, double y1, double x2, double y2)
+        {
+            var x = x2 - x1;
+            var y = y2 - y1;
+
+            return Math.Sqrt(x * x + y * y);
+        }
 
         /// <summary>
         /// ROHeightAndDist - Added by ES:02.01.23
@@ -40,7 +114,7 @@ namespace FileImporter
             if (D1 < D2 || D2 == 0)
             {
                 ROIs = 1;
-                NRG.MathsHelpers.Trig.RPC(Stn1.X, Stn1.Y, Stn2.X, Stn2.Y, ref brg, ref dist);
+                RPC(Stn1.X, Stn1.Y, Stn2.X, Stn2.Y, ref brg, ref dist);
                 ac = Obs1.HorizontalAngle - Obs2.HorizontalAngle;
                 ROd = D1;
                 ROsd = Obs1.SlopeDistance;
@@ -50,7 +124,7 @@ namespace FileImporter
             else
             {
                 ROIs = 2;
-                NRG.MathsHelpers.Trig.RPC(Stn2.X, Stn2.Y, Stn1.X, Stn1.Y, ref brg, ref dist);
+                RPC(Stn2.X, Stn2.Y, Stn1.X, Stn1.Y, ref brg, ref dist);
                 ac = Obs2.HorizontalAngle - Obs1.HorizontalAngle;
                 ROd = D2;
                 ROsd = Obs2.SlopeDistance;  
@@ -58,7 +132,7 @@ namespace FileImporter
                 fz = Stn2.Z;    
             }
 
-            double d = NRG.MathsHelpers.Vector.FnDistance(Stn1.X, Stn1.Y, Stn2.X, Stn2.Y);
+            double d = FnDistance(Stn1.X, Stn1.Y, Stn2.X, Stn2.Y);
 
             double ia = (Math.Sin(ac) / d) * ROd;
             ia = Math.Asin(ia);
@@ -75,13 +149,13 @@ namespace FileImporter
             double RoHeight = 0,  Hdist = 0;
             if (ROIs== 1)
             {
-                NRG.MathsHelpers.Trig.RPC(fx, fy, Stn2.X, Stn2.Y, ref b, ref d);
+                RPC(fx, fy, Stn2.X, Stn2.Y, ref b, ref d);
                 ROHeightAndDist(fz, Obs2.TargetHeight, Obs2.VerticalAngle, Obs2.SlopeDistance, out  RoHeight, out  Hdist);
             }
             else
             {
-                NRG.MathsHelpers.Trig.RPC(fx, fy, Stn1.X, Stn1.Y, ref b, ref d);
-                ;
+                RPC(fx, fy, Stn1.X, Stn1.Y, ref b, ref d);
+                
                 ROHeightAndDist(fz, Obs1.TargetHeight, Obs1.VerticalAngle, Obs1.SlopeDistance, out RoHeight, out Hdist);
 
             }

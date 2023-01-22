@@ -1,4 +1,4 @@
-﻿using C1.Util;
+﻿
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,7 +12,7 @@ using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using SiteSurvey;
+
 using System.Runtime.InteropServices.ComTypes;
 
 namespace FileImporter
@@ -42,7 +42,8 @@ namespace FileImporter
         public enum CoordinateOptions
         { 
             General = 0,
-            GPF = 1
+            GPF = 1,
+            RO = 2
         }
 
         private const string FORMAT_ERR = "The file appears to be in the incorrect format. Please check your data and retry this operation.";
@@ -59,71 +60,14 @@ namespace FileImporter
 
         private List<PolarObservation> PolarOberservations = new List<PolarObservation>();
 
-        private string GetFileName(string startFolder, string filename, string extension)
+        private string GetFileName()
         {
-
-            if (extension.Length > 1 && !extension.StartsWith("."))
-            {
-                extension = "." + extension;
-            }
-            else
-            { 
-                return "";
-            }
-
-            filename = Path.ChangeExtension(filename, "");
-
-            return "";
+            return Path.GetTempFileName();
         }
 
-        private void WritePointsToGPF(string CoordDirectory,string filename)
+        private void WritePointsToGPF(string filename)
         {
-
-            if (filename.ValidFile())
-            {
-                filename = Path.ChangeExtension(filename, ".GPF");
-            }
-
-            if (!filename.ValidFile())
-            {
-
-                SaveFileDialog sfd = new SaveFileDialog();
-                if (Directory.Exists(CoordDirectory))
-                {
-                    sfd.InitialDirectory = CoordDirectory;
-                    sfd.FileName = filename;
-
-                }
-                sfd.Filter = "Ground Plot Files (*.gpf) | *.gpf";
-
-                DialogResult res = sfd.ShowDialog();
-                if (res == DialogResult.Cancel)
-                {
-                    return;
-                }
-                else
-                {
-                    filename = sfd.FileName;
-                }
-
-            }
-
-            else
-            {
-                //Have the file name in upper case to make manipulation easier!
-                filename.ToUpper().Replace(".RAW", ".GPF");
-            }
-
-            if (File.Exists(filename))
-            {
-                //do we want to overwrite one that already exists?
-                DialogResult res = MessageBox.Show("The selected file exists, do you want to overwrite?", "File Exists!", MessageBoxButtons.YesNo);
-                if (res == DialogResult.No)
-                {
-                    return;
-                }
-            }
-
+  
             try
             {
 
@@ -138,8 +82,6 @@ namespace FileImporter
 
                     sw.Close();
                 }
-
-                
             }
             catch(Exception ex) 
             {
@@ -149,41 +91,82 @@ namespace FileImporter
             }
         }
 
-        private void WritePointsToPDF(string ObsDirectory, string filename)
-        { 
+        private void WritePointsToPDF(string filename)
+        {
+
+            if (Setups != null)
+            {
+                try
+                {
+
+                    using (StreamWriter sw = new StreamWriter(filename, false))
+                    {
+
+                        foreach (StationSetup su in Setups)
+                        {
+                            double roHt = 0;
+                            if (su.DetailShots != null)
+                            {
+                                roHt = su.DetailShots.First().TargetHeight;
+                            }
+
+                            sw.WriteLine("PGM" + su.Occupied.PointNumber + "," + su.Occupied.Easting.ToString("0.000") + "," + su.Occupied.Northing.ToString("0.000") + "," + su.Occupied.Level.ToString("0.000") + "," + su.Occupied.InstrumentHeight.ToString("0.000") + ",,,");
+                            sw.WriteLine("PGM" + su.Reference.PointNumber + "," + su.Reference.Easting.ToString("0.000") + "," + su.Reference.Northing.ToString("0.000") + "," + su.Reference.Level.ToString("0.000") + "," + roHt.ToString("0.000") + ",,,");
+                            int idx = 0;
+                            foreach (PolarObservation po in su.DetailShots)
+                            { 
+                                idx ++;   
+                                sw.WriteLine(idx.ToString().PadLeft(3,'0') + po.Code + "," + po.HorizontalAngle.ToString("0.0000000") + "," + po.VerticalAngle.ToString("0.0000000") + "," + po.SlopeDistance.ToString("0.0000") + po.TargetHeight.ToString("0.0000") + ",,,,");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    {
+                        MessageBox.Show("An error was encountered while attempting to write observation to the file." + Environment.NewLine + Environment.NewLine + ex.Message, "File Write Error");
+                        return;
+
+                    }
+
+                }
+            }
+            else 
+            {
+                MessageBox.Show("No raw observation to extract", "Geomax Import", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
         
         }
 
-        public bool ImportGeomaxRAW(string FileName = "", string CoordDirectory = "", string ObsDirectory = "")
+        public string ImportGeomaxRAW( int outputFormat)
         {
-         
-            if (!FileName.ValidFile())
+
+            string FileName = "";
+
+            OpenFileDialog ofd = new OpenFileDialog();
+
+            ofd.Filter = ofd.Filter = "Geomax Raw Data Files|*.raw;*.raw;*.raw";
+            string initDir = Settings.Default.GeomaxImportDirectory;
+            if (Directory.Exists(initDir))
             {
-
-                OpenFileDialog ofd = new OpenFileDialog();
-
-                ofd.Filter = ofd.Filter = "Geomax Raw Data Files|*.raw;*.raw;*.raw";
-                string initDir = Settings.Default.GeomaxImportDirectory;
-                if (Directory.Exists(initDir))
-                {
-                    ofd.InitialDirectory = initDir;
-                }
-                if (ofd.ShowDialog() != DialogResult.OK)
-                {
-                    MessageBox.Show("File selection cancelled.", "File Open", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return false;
-                }
-                else
-                {
-                    FileName = ofd.FileName;
-                    initDir = Path.GetDirectoryName(FileName);
-                    Settings.Default.GeomaxImportDirectory = initDir;
-                }
+                ofd.InitialDirectory = initDir;
             }
+            if (ofd.ShowDialog() != DialogResult.OK)
+            {
+                MessageBox.Show("File selection cancelled.", "File Open", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return "";
+            }
+            else
+            {
+                FileName = ofd.FileName;
+                initDir = Path.GetDirectoryName(FileName);
+                Settings.Default.GeomaxImportDirectory = initDir;
+            }
+            
 
             if (!FileName.ValidFile() == true)
             {
-                return false;
+                return "";
             }
             List<string> lines;
 
@@ -196,14 +179,14 @@ namespace FileImporter
             {
                 //Oops, that didn't work
                 MessageBox.Show("An error occured while attempting to read the file." + Environment.NewLine + "Error Description: " + e.Message + Environment.NewLine + "Please check the file is not open in another application and retry this operation.", "Geomax Import", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
+                return "";
 
             }
             if (lines.Count() == 0)
             {
                 //empty file? Unlikely but plead not guilty in true NRG fashion.
                 MessageBox.Show("There was no data found in the file. Please check the file has not become corrupt and retry this operation.", "Geomax Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
+                return "";
             }
             #endregion Open the data
 
@@ -220,13 +203,13 @@ namespace FileImporter
             else
             {
                 MessageBox.Show(FORMAT_ERR, "Error Reading Header", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
+                return "";
             }
 
             if (lines.Count < 1)
             {
                 MessageBox.Show(FILE_INCOMPLETE, "GeoMax Raw Import");
-                return false;
+                return "";
             }
 
             //read the rest in a loop...
@@ -292,66 +275,81 @@ namespace FileImporter
             }
             #endregion parse
 
-            WritePointsToGPF( CoordDirectory, FileName);
+            string outputFile = "";
 
-            //finally report info to the user...
-            GeomaxResultsDlg dlg = new GeomaxResultsDlg();
+            outputFile = GetFileName();
 
-            dlg.AddResultText("General File Information:");
-            dlg.AddResultText("File Version - " + Header.FileVersion);
-            dlg.AddResultText("File Date - " + Header.Date);
-            dlg.AddResultText("File Time - " + Header.Time);
-            dlg.AddResultText("Survey Crew - " + Header.Crew);
-            dlg.AddResultText("Notes - " + Header.Notes);
-            dlg.AddResultText("");
-            dlg.AddResultText("Control Stations:");
-
-            foreach (KeyValuePair<string, TopoGraphicPoint> entry in ControlStations)
+            if (outputFormat == 0)
             {
-                dlg.AddResultText(entry.Key + " - " + "Easting:" + entry.Value.Easting.ToString("0.000") + " Northing:" + entry.Value.Northing.ToString("0.000") + "Level:" + entry.Value.Level.ToString("0.000"));
+                outputFile = Path.ChangeExtension(outputFile, "GPF");
+                WritePointsToGPF(outputFile);
             }
-
-            dlg.AddResultText("");
-
-            if (TopoGraphicPoints != null && TopoGraphicPoints.Count > 0)
+            else
             {
-                dlg.AddResultText("Topographic Points:");
-
-                foreach (TopoGraphicPoint p in TopoGraphicPoints)
-                {
-                    dlg.AddResultText(p.ToString(CoordinateOptions.General));
-                }
-
+                outputFile = Path.ChangeExtension(outputFile, "PDF");
 
             }
+            return outputFile;
 
-            dlg.AddResultText("");
-            int i = 0;
+            #region commented out stuff...
+            ////finally report info to the user...
+            //GeomaxResultsDlg dlg = new GeomaxResultsDlg();
 
-            dlg.AddResultText("RAW Observations:");
+            //dlg.AddResultText("General File Information:");
+            //dlg.AddResultText("File Version - " + Header.FileVersion);
+            //dlg.AddResultText("File Date - " + Header.Date);
+            //dlg.AddResultText("File Time - " + Header.Time);
+            //dlg.AddResultText("Survey Crew - " + Header.Crew);
+            //dlg.AddResultText("Notes - " + Header.Notes);
+            //dlg.AddResultText("");
+            //dlg.AddResultText("Control Stations:");
+
+            //foreach (KeyValuePair<string, TopoGraphicPoint> entry in ControlStations)
+            //{
+            //    dlg.AddResultText(entry.Key + " - " + "Easting:" + entry.Value.Easting.ToString("0.000") + " Northing:" + entry.Value.Northing.ToString("0.000") + "Level:" + entry.Value.Level.ToString("0.000"));
+            //}
+
+            //dlg.AddResultText("");
+
+            //if (TopoGraphicPoints != null && TopoGraphicPoints.Count > 0)
+            //{
+            //    dlg.AddResultText("Topographic Points:");
+
+            //    foreach (TopoGraphicPoint p in TopoGraphicPoints)
+            //    {
+            //        dlg.AddResultText(p.ToString(CoordinateOptions.General));
+            //    }
 
 
-            if (Setups != null && Setups.Count > 0)
-            {
-                foreach (StationSetup ss in Setups)
-                {
-                    i++;
+            //}
 
-                    dlg.AddResultText("Setup " + i.ToString());
-                    dlg.AddResultText("Occupied: " + ss.Occupied.PointNumber);
-                    foreach (PolarObservation o in ss.DetailShots)
-                    {
-                        dlg.AddResultText("Raw Observation: " + o.PointNumber);
-                        dlg.AddResultText("Raw Observation: " + o.ToString());
-                    }
+            //dlg.AddResultText("");
+            //int i = 0;
+
+            //dlg.AddResultText("RAW Observations:");
 
 
-                }
-            }
+            //if (Setups != null && Setups.Count > 0)
+            //{
+            //    foreach (StationSetup ss in Setups)
+            //    {
+            //        i++;
 
-            dlg.ShowDialog();
-            return true;
+            //        dlg.AddResultText("Setup " + i.ToString());
+            //        dlg.AddResultText("Occupied: " + ss.Occupied.PointNumber);
+            //        foreach (PolarObservation o in ss.DetailShots)
+            //        {
+            //            dlg.AddResultText("Raw Observation: " + o.PointNumber);
+            //            dlg.AddResultText("Raw Observation: " + o.ToString());
+            //        }
 
+
+            //    }
+            //}
+
+            //dlg.ShowDialog();
+            //return true;
+            #endregion commented out stuff
         }
 
         /// <summary>
@@ -359,7 +357,7 @@ namespace FileImporter
         //    /// </summary>
         //    /// <param name="PointNumber point number to find,"></param>
         //    /// <returns><matching point if point number found, false otheriwse</returns>
-        
+
         private TopoGraphicPoint FindPoint(string PointNumber)
         {
             TopoGraphicPoint pt = null;
@@ -472,10 +470,10 @@ namespace FileImporter
                 return false;
             }
 
-            public string ToString()
-            {
-                return "";
-            }
+            //public string ToString()
+            //{
+            //    return "";
+            //}
         }
         #endregion polar observation class
 
@@ -506,10 +504,13 @@ namespace FileImporter
                     txt = PointNumber + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + Code + "," + "Class: " + PointClass + "," + "Description: " + Description + "," + "Date :" + Date + "," + "Time: " + Time;
                 }
                 else if (opts == CoordinateOptions.GPF)
-                { 
-                    txt = PointNumber + "," + NRG.Services.StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
+                {
+                    txt = PointNumber + "," + StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
                 }
-
+                else if (opts == CoordinateOptions.RO)
+                { 
+                    
+                }
                 return txt;
             }
 
@@ -670,6 +671,13 @@ namespace FileImporter
                         }
                     }
                 }
+            }
+
+            public string ToString(string delim = ",")
+            {
+
+                return "PGM" + this.PointNumber + delim + Easting + delim + Northing + delim + Level + delim + InstrumentHeight + delim + delim + delim + delim ;
+                
             }
         }
  
