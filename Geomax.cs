@@ -12,7 +12,7 @@ using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-
+using System.IO.Compression;
 using System.Runtime.InteropServices.ComTypes;
 
 namespace FileImporter
@@ -116,7 +116,7 @@ namespace FileImporter
                             foreach (PolarObservation po in su.DetailShots)
                             { 
                                 idx ++;   
-                                sw.WriteLine(idx.ToString().PadLeft(3,'0') + po.Code + "," + po.HorizontalAngle.ToString("0.0000000") + "," + po.VerticalAngle.ToString("0.0000000") + "," + po.SlopeDistance.ToString("0.0000") + po.TargetHeight.ToString("0.0000") + ",,,,");
+                                sw.WriteLine(idx.ToString().PadLeft(3,'0') + po.Code + "," + po.HorizontalAngle.ToString("0.0000000") + "," + po.VerticalAngle.ToString("0.0000000") + "," + po.SlopeDistance.ToString("0.0000") + "," + po.TargetHeight.ToString("0.0000") + "," +  "," + "Reflector Type: " + po.Reflector + "," + "Aiming: " + po.Aiming + ", Description: " + po.Description +  ",,");
                             }
                         }
                     }
@@ -145,7 +145,8 @@ namespace FileImporter
 
             OpenFileDialog ofd = new OpenFileDialog();
 
-            ofd.Filter = ofd.Filter = "Geomax Raw Data Files|*.raw;*.raw;*.raw";
+            ofd.Filter = ofd.Filter = "Geomax Raw Data Files|*.raw;*.raw;*.raw|Compressed Geomax Files (*.XPAD)|*.xpad";
+
             string initDir = Settings.Default.GeomaxImportDirectory;
             if (Directory.Exists(initDir))
             {
@@ -168,6 +169,48 @@ namespace FileImporter
             {
                 return "";
             }
+
+            if (Path.GetExtension(FileName).ToUpper()== ".XPAD")
+            {
+                string tmpPath = Path.GetTempPath();
+
+                 tmpPath +=  Path.GetFileNameWithoutExtension(FileName);
+
+                if (Directory.Exists(tmpPath))
+                {
+                    try 
+                    {
+                       Directory.Delete(tmpPath, true);
+                    }
+                    catch(Exception e) 
+                    {
+
+                        MessageBox.Show("An error ocurred while attempting to extract the compressed Geomax file - " + tmpPath + Environment.NewLine + Environment.NewLine + e.Message, "Import Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                    }
+                }
+                Directory.CreateDirectory(tmpPath);
+                System.IO.Compression.ZipFile.ExtractToDirectory(FileName, tmpPath);
+
+
+                List<string> fileList = Directory.GetFiles(tmpPath).ToList();
+                foreach (string file in fileList) 
+                {
+                    if (Path.GetExtension(file).ToUpper() == ".RAW")
+                    { 
+                        FileName = file;
+                        break;
+                    }
+                }
+
+                if (!FileName.ValidFile())
+                {
+                    MessageBox.Show("No valid file found in compressed archive", "Import Geomax compressed file", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return "";
+                }
+
+            }
+
             List<string> lines;
 
             #region Open the file and check we have something remotely valid to parse
@@ -248,6 +291,17 @@ namespace FileImporter
                             setup = Setups.Last();
                             if (setup != null) 
                             {
+
+                                if (setup.DetailShots.Count == 0)
+                                {
+                                    TopoGraphicPoint ropt = new TopoGraphicPoint();
+                                    ropt = FindPoint(obs.PointNumber);
+                                    if (ropt != null)
+                                    {
+                                        setup.Reference = ropt;    
+                                    }
+                                }        
+
                                 setup.DetailShots.Add(obs);
                                 
                             }
@@ -287,8 +341,9 @@ namespace FileImporter
             else
             {
                 outputFile = Path.ChangeExtension(outputFile, "PDF");
-
+                WritePointsToPDF(outputFile);   
             }
+
             return outputFile;
 
             #region commented out stuff...
@@ -508,13 +563,11 @@ namespace FileImporter
                     txt = PointNumber + "," + StringHandling.WrapWithQuotes(Code) + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + "," + "Point Class: " + PointClass + "," + "Decription: " + Description + "," + "Date: " + Date + "," + "Time: " + Time;
                 }
                 else if (opts == CoordinateOptions.RO)
-                { 
-                    
+                {
+                    txt = "PGM" + PointNumber + "," + Easting.ToString("0.000") + "," + Northing.ToString("0.000") + "," + Level.ToString("0.000") + ",,,,";
                 }
                 return txt;
             }
-
-
 
             public bool ParseTopoPoint(string Line)
             {
@@ -634,8 +687,8 @@ namespace FileImporter
 
         private class StationSetup
         {
-            public OccupiedPosition Occupied{ private set; get; }
-            public TopoGraphicPoint Reference{ private set; get; }
+            public OccupiedPosition Occupied{set; get;}
+            public TopoGraphicPoint Reference{set; get;}
             public List<PolarObservation> DetailShots = new List<PolarObservation>();
 
             public StationSetup(OccupiedPosition occ)
