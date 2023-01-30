@@ -1,4 +1,5 @@
 ﻿
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -94,6 +95,12 @@ namespace FileImporter
         private void WritePointsToPDF(string filename)
         {
 
+            if (Setups == null || Setups.Count == 0)
+            {
+                MessageBox.Show("No terestrial raw observations contained in the file.", "Geomax Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             if (Setups != null)
             {
                 try
@@ -115,8 +122,20 @@ namespace FileImporter
                             int idx = 0;
                             foreach (PolarObservation po in su.DetailShots)
                             { 
-                                idx ++;   
-                                sw.WriteLine(idx.ToString().PadLeft(3,'0') + po.Code + "," + po.HorizontalAngle.ToString("0.0000000") + "," + po.VerticalAngle.ToString("0.0000000") + "," + po.SlopeDistance.ToString("0.0000") + "," + po.TargetHeight.ToString("0.0000") + "," +  "," + "Reflector Type: " + po.Reflector + "," + "Aiming: " + po.Aiming + ", Description: " + po.Description +  ",,");
+                                idx ++;
+                                String cd = "";
+
+                                
+                                
+                                if (idx == 1)
+                                {
+                                    cd = su.Reference.PointNumber;
+                                }
+                                else
+                                {
+                                    cd = idx.ToString().PadLeft(3, '0') + cd;
+                                }
+                                sw.WriteLine(cd + "," + po.HorizontalAngle.ToString("0.0000000") + "," + po.VerticalAngle.ToString("0.0000000") + "," + po.SlopeDistance.ToString("0.0000") + "," + po.TargetHeight.ToString("0.0000") + "," +  "," + "Reflector Type: " + po.Reflector + "," + "Aiming: " + po.Aiming + ", Description: " + po.Description +  ",,");
                             }
                         }
                     }
@@ -718,7 +737,11 @@ namespace FileImporter
                             if (f.ToUpper().Trim() == "STB")
                             {
                                 PointNumber = fields[4].Substring(2).ToUpper().Trim();
-                                InstrumentHeight = fields[5].ToDouble();
+                                if (fields[5].Length > 2)
+                                {
+                                    InstrumentHeight = fields[5].Substring(2).ToDouble();
+
+                                }
                                 
                             }
                         }
